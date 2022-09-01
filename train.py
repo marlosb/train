@@ -15,6 +15,93 @@ from sklearn import ensemble # Random Forest
 import sqlalchemy
 import xgboost as xgb       
 
+def train_rl(imputer_zero, imputer_um, onehot, X_train, y_train):
+    ## Definição do modelo
+    model_rl = linear_model.LogisticRegression(penalty='l1', 
+                                               solver='liblinear' ) 
+
+    full_pipeline_rl = Pipeline( steps=[('zero', imputer_zero),
+                                        ('um', imputer_um),
+                                        ("onehot", onehot),
+                                        ('model', model_rl) ] )
+    ## inspace
+    param_grid = { 'model__C':np.linspace(0,0.22,5), 
+                'model__random_state':[1992]}
+
+    search_rl = model_selection.GridSearchCV(full_pipeline_rl,
+                                            param_grid,
+                                            cv=3,
+                                            n_jobs=-1,
+                                            scoring='roc_auc')
+    ## Executa o treinamento!!
+    search_rl.fit(X_train, y_train) 
+    return search_rl.best_estimator_
+
+def train_tree(imputer_zero, imputer_um, onehot, X_train, y_train):
+    ## Definição do modelo
+    model_tree = tree.DecisionTreeClassifier() 
+
+    full_pipeline_tree = Pipeline( steps=[ ('zero', imputer_zero),
+                                        ('um', imputer_um),
+                                        ("onehot", onehot),
+                                        ('modelo', model_tree) ] )
+
+    param_grid = { "modelo__max_depth":[None, 5,6,7],
+                "modelo__min_samples_split":[2,5],
+                "modelo__min_samples_leaf":[1,2,5] }
+    ## Declaração
+    search_tree = model_selection.GridSearchCV(full_pipeline_tree,
+                                param_grid,
+                                cv=3,
+                                n_jobs=-1,
+                                scoring='neg_root_mean_squared_error') 
+    ## Executa o treinamento!!
+    search_tree.fit(X_train, y_train) 
+    return search_tree.best_estimator_
+
+def train_forest(imputer_zero, imputer_um, onehot, X_train, y_train):
+    ## Definição do modelo
+    model_rf = ensemble.RandomForestClassifier(random_state=1992) 
+
+    full_pipeline_rf = Pipeline( steps=[('zero', imputer_zero),
+                                        ('um', imputer_um),
+                                        ('onehot', onehot),
+                                        ('modelo', model_rf)])
+
+    param_grid = { "modelo__n_estimators":[10,20],
+                "modelo__max_depth":[5,10],
+                "modelo__min_samples_split":[10,12],
+                "modelo__min_samples_leaf":[5,10] }
+    ## Declaração
+    search_rf = model_selection.GridSearchCV(full_pipeline_rf,
+                                param_grid,
+                                cv=3,
+                                n_jobs=-1,
+                                scoring='neg_root_mean_squared_error') 
+    ## Executa o treinamento!!
+    search_rf.fit(X_train, y_train) 
+    return search_rf.best_estimator_
+
+def train_xgb(steps, X_train, y_train):
+    model_xgb = xgb.XGBClassifier(random_state=1992)
+
+    steps = steps + [('modelo', model_xgb)]
+    full_pipeline_xgb = Pipeline(steps)
+
+    param_grid = { "modelo__n_estimators":[10,50],
+                "modelo__max_depth":[5,10],
+                "modelo__eta":[0.1, 0.3],
+                "modelo__subsample":[0.1, 0.2] }
+    ## Declaração
+    search_xgb = model_selection.GridSearchCV(full_pipeline_xgb,
+                                param_grid,
+                                cv=3,
+                                n_jobs=-1,
+                                scoring='neg_root_mean_squared_error') 
+    ## Executa o treinamento!!
+    search_xgb.fit(X_train, y_train) 
+    return search_xgb.best_estimator_
+
 def train_select_model(DATA_PATH):
     ''' Function to train all models, assess results and choose be one.
     ''' 
@@ -63,113 +150,32 @@ def train_select_model(DATA_PATH):
                                          drop_last=True) # Cria Dummys   
 
     # Regressão Logística
-    ## Definição do modelo
-    model_rl = linear_model.LogisticRegression(penalty='l1', 
-                                               solver='liblinear' ) 
-
-    full_pipeline_rl = Pipeline( steps=[('zero', imputer_zero),
-                                        ('um', imputer_um),
-                                        ("onehot", onehot),
-                                        ('model', model_rl) ] )
-    ## inspace
-    param_grid = { 'model__C':np.linspace(0,0.22,5), 
-                'model__random_state':[1992]}
-
-    search_rl = model_selection.GridSearchCV(full_pipeline_rl,
-                                            param_grid,
-                                            cv=3,
-                                            n_jobs=-1,
-                                            scoring='roc_auc')
-    ## Executa o treinamento!!
-    search_rl.fit(X_train, y_train) 
-    best_model_rl = search_rl.best_estimator_
-
+    best_model_rl = train_rl(imputer_zero, 
+                            imputer_um, 
+                            onehot, 
+                            X_train, 
+                            y_train)
     # Árvore de decisão
-    ## Definição do modelo
-    model_tree = tree.DecisionTreeClassifier() 
-
-    full_pipeline_tree = Pipeline( steps=[ ('zero', imputer_zero),
-                                        ('um', imputer_um),
-                                        ("onehot", onehot),
-                                        ('modelo', model_tree) ] )
-
-    param_grid = { "modelo__max_depth":[None, 5,6,7],
-                "modelo__min_samples_split":[2,5],
-                "modelo__min_samples_leaf":[1,2,5] }
-    ## Declaração
-    search_tree = model_selection.GridSearchCV(full_pipeline_tree,
-                                param_grid,
-                                cv=3,
-                                n_jobs=-1,
-                                scoring='neg_root_mean_squared_error') 
-    ## Executa o treinamento!!
-    search_tree.fit(X_train, y_train) 
-    best_model_tree = search_tree.best_estimator_
-
+    best_model_tree = train_tree(imputer_zero, 
+                                imputer_um, 
+                                onehot, 
+                                X_train, 
+                                y_train)
     # Random Forest
-    ## Definição do modelo
-    model_rf = ensemble.RandomForestClassifier(random_state=1992) 
-
-    full_pipeline_rf = Pipeline( steps=[('zero', imputer_zero),
-                                        ('um', imputer_um),
-                                        ('onehot', onehot),
-                                        ('modelo', model_rf)])
-
-    param_grid = { "modelo__n_estimators":[10,20],
-                "modelo__max_depth":[5,10],
-                "modelo__min_samples_split":[10,12],
-                "modelo__min_samples_leaf":[5,10] }
-    ## Declaração
-    search_rf = model_selection.GridSearchCV(full_pipeline_rf,
-                                param_grid,
-                                cv=3,
-                                n_jobs=-1,
-                                scoring='neg_root_mean_squared_error') 
-    ## Executa o treinamento!!
-    search_rf.fit(X_train, y_train) 
-    best_model_rf = search_rf.best_estimator_
+    best_model_rf = train_forest(imputer_zero, 
+                                imputer_um, 
+                                onehot, 
+                                X_train, 
+                                y_train)
 
     # XGBoot 1
-    model_xgb = xgb.XGBClassifier(random_state=1992)
-
-    full_pipeline_xgb = Pipeline( steps=[('zero', imputer_zero),
-                                        ('um', imputer_um),
-                                        ('onehot', onehot),
-                                        ('modelo', model_xgb)])
-
-    param_grid = { "modelo__n_estimators":[10,50],
-                "modelo__max_depth":[5,10],
-                "modelo__eta":[0.1, 0.3],
-                "modelo__subsample":[0.1, 0.2] }
-    ## Declaração
-    search_xgb = model_selection.GridSearchCV(full_pipeline_xgb,
-                                param_grid,
-                                cv=3,
-                                n_jobs=-1,
-                                scoring='neg_root_mean_squared_error') 
-    ## Executa o treinamento!!
-    search_xgb.fit(X_train, y_train) 
-    best_model_xgb = search_xgb.best_estimator_
+    steps = [('zero', imputer_zero), 
+            ('um', imputer_um), ('onehot', onehot)]
+    best_model_xgb = train_xgb(steps, X_train, y_train)
 
     # XGboot 2
-    model_xgb = xgb.XGBClassifier(random_state=1992)
-
-    full_pipeline_xgb_nt = Pipeline( steps=[('onehot', onehot),
-                                            ('modelo', model_xgb)])
-
-    param_grid = {"modelo__n_estimators":[10,50],
-                "modelo__max_depth":[3,5],
-                "modelo__eta":[0.1, 0.3],
-                "modelo__subsample":[0.1, 0.2] }
-    ## Declaração
-    search_xgb_nt = model_selection.GridSearchCV(full_pipeline_xgb_nt,
-                                param_grid,
-                                cv=3,
-                                n_jobs=-1,
-                                scoring='neg_root_mean_squared_error') 
-    ## Executa o treinamento!!
-    search_xgb_nt.fit(X_train, y_train) 
-    best_model_xgb_nt = search_xgb_nt.best_estimator_
+    steps = [('onehot', onehot)] 
+    best_model_xgb_nt = train_xgb(steps, X_train, y_train)
 
     # Checando performance
     # Verificando erro na base de teste
