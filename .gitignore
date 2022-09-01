@@ -2,3 +2,4 @@ my_venv/
 data/
 models/
 notebooks/
+__pycache__/
