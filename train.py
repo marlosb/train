@@ -102,7 +102,7 @@ def train_xgb(steps, X_train, y_train):
     search_xgb.fit(X_train, y_train) 
     return search_xgb.best_estimator_
 
-def train_select_model(DATA_PATH):
+def train_select_model(DATA_PATH, MODEL_PATH):
     ''' Function to train all models, assess results and choose be one.
     ''' 
 
@@ -237,4 +237,5 @@ def train_select_model(DATA_PATH):
                       "model":champion_model,
                       "auc":{"test": champion_auc, "oot":auc_oot}} )
 
-    model_s.to_pickle("models/best_model_olist_xgb_nt.pkl")
+    now = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+    model_s.to_pickle(MODEL_PATH + f'/chamption_model - {now}.pkl ')
