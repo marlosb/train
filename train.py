@@ -175,7 +175,7 @@ def train_select_model(DATA_PATH):
 
     # XGboot 2
     steps = [('onehot', onehot)] 
-    best_model_xgb_nt = train_xgb(steps, X_train, y_train)
+    champion_model = train_xgb(steps, X_train, y_train)
 
     # Checando performance
     # Verificando erro na base de teste
@@ -183,7 +183,7 @@ def train_select_model(DATA_PATH):
     y_test_prob_tree = best_model_tree.predict_proba(X_test)[:, 1]
     y_test_prob_rf = best_model_rf.predict_proba(X_test)[:, 1]
     y_test_prob_xgb = best_model_xgb.predict_proba(X_test)[:, 1]
-    y_test_prob_xgb_nt = best_model_xgb_nt.predict_proba(X_test)[:, 1]
+    y_test_prob_xgb_nt = champion_model.predict_proba(X_test)[:, 1]
 
     auc_test_rl = metrics.roc_auc_score( y_test, y_test_prob_rl)
     auc_test_tree = metrics.roc_auc_score( y_test, y_test_prob_tree)
@@ -191,31 +191,50 @@ def train_select_model(DATA_PATH):
     auc_test_xgb = metrics.roc_auc_score( y_test, y_test_prob_xgb)
     auc_test_xgb_nt = metrics.roc_auc_score( y_test, y_test_prob_xgb_nt)
 
+    # Criado DataFrame com os modelos e resultados
+    all_models = (
+        pd.DataFrame(columns=['name', 'modelo', 'auc'],
+            data=[['Regressão Logística', best_model_rl, auc_test_rl],
+                ['Árvore', best_model_tree, auc_test_tree],
+                ['Random Forest', best_model_rf, auc_test_rf],
+                ['XGB', best_model_xgb, auc_test_xgb],
+                ['XGB NT', champion_model, auc_test_xgb_nt]] ))
+
+    ## extraindo o modelo campeão
+    champion_model = (
+    all_models.sort_values('auc', 
+                             ascending=False).head(1)['modelo'].item())
+
+    champion_auc = ( all_models.sort_values('auc', 
+                             ascending=False).head(1)['auc'].item())                             
+
     # Retreinar para a base toda (Sem OOT)
-    best_model_xgb_nt.fit( df_train[num_vars+cat_vars], 
+    champion_model.fit( df_train[num_vars+cat_vars], 
                            df_train[target])
 
     # Verificando performance na base Out Of Time
     y_test_prob = (
-    best_model_xgb_nt.predict_proba(df_oot[ num_vars+cat_vars ])[:, 1])
+    champion_model.predict_proba(df_oot[ num_vars+cat_vars ])[:, 1])
     auc_oot = metrics.roc_auc_score( df_oot[target], y_test_prob)
-    print( "Área sob a curva ROC:", auc_oot)
 
     # Retreinando o modelo para a base realmente completa
-    best_model_xgb_nt.fit(df[num_vars+cat_vars], df[target])
+    champion_model.fit(df[num_vars+cat_vars], df[target])
 
     # salvando o modelos no disco
-    features = (best_model_xgb_nt[:-1].transform( 
+    features = (champion_model[:-1].transform( 
                df_train[ num_vars+cat_vars ] ).columns.tolist())
-    features_importance = (
-        pd.Series(best_model_xgb_nt[-1].feature_importances_, 
-        index= features))
-    features_importance.sort_values( ascending=False ).head(20)
+    try:
+        features_importance = (
+            pd.Series(champion_model[-1].feature_importances_, 
+            index= features))
+        features_importance.sort_values( ascending=False ).head(20)
+    except AttributeError:
+        features_importance = None
 
     model_s = pd.Series( {"cat_vars":cat_vars,
                       "num_vars":num_vars,
                       "fit_vars": X_train.columns.tolist(),
-                      "model":best_model_xgb_nt,
-                      "auc":{"test": auc_test_xgb_nt, "oot":auc_oot}} )
+                      "model":champion_model,
+                      "auc":{"test": champion_auc, "oot":auc_oot}} )
 
     model_s.to_pickle("models/best_model_olist_xgb_nt.pkl")
